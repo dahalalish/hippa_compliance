@@ -1,12 +1,14 @@
 import os
 import re
 import spacy
+from sentence_transformers import SentenceTransformer, util
 
-# Base directory
+# ---------------- PATHS ----------------
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_DIR = os.path.join(BASE_DIR, "models", "phi_ner", "model-best")
 
-# Load trained NER model
+# ---------------- LOADERS ----------------
+# Load spaCy PHI NER model
 try:
     nlp = spacy.load(MODEL_DIR)
     print(f"✅ Loaded PHI NER model from {MODEL_DIR}")
@@ -14,8 +16,16 @@ except Exception as e:
     print(f"❌ Failed to load PHI model: {e}")
     nlp = None
 
+# Load embeddings model for validation
+try:
+    embedder = SentenceTransformer("all-MiniLM-L6-v2")
+    print("✅ Loaded embeddings model (all-MiniLM-L6-v2)")
+except Exception as e:
+    print(f"❌ Failed to load embeddings model: {e}")
+    embedder = None
 
-# ---------------- HELPER FILTER ----------------
+
+# ---------------- FILTER HELPERS ----------------
 def is_valid_entity(label: str, text: str) -> bool:
     """Rule-based validation for NER predictions"""
     tokens = text.split()
@@ -43,7 +53,8 @@ def is_valid_entity(label: str, text: str) -> bool:
             "diagnosis", "treatment", "history", "introduction", "evaluation",
             "angiography", "medication", "rehabilitation", "adjustment",
             "compliance", "adherence", "symptoms", "copyright", "reports",
-            "information", "purpose", "revealed", "advise", "birth", "leave"
+            "information", "purpose", "revealed", "advise", "birth", "leave",
+            "conclusion", "abstract", "section"
         }
         if any(word.lower() in bad_keywords for word in tokens):
             return False
@@ -65,6 +76,19 @@ def is_valid_entity(label: str, text: str) -> bool:
             return False
 
     return True
+
+
+def embedding_is_name(text: str, threshold: float = 0.6) -> bool:
+    """Use embeddings to decide if a PERSON candidate is actually a name"""
+    if not embedder:
+        return True  # fallback if no embeddings model
+
+    name_refs = ["John Smith", "Jane Doe", "Emily Johnson", "Dr. Alan Green", "Michael Brown"]
+    ref_emb = embedder.encode(name_refs, convert_to_tensor=True)
+    cand_emb = embedder.encode(text, convert_to_tensor=True)
+
+    sim = util.cos_sim(cand_emb, ref_emb).max().item()
+    return sim >= threshold
 
 
 # ---------------- DETECTION FUNCTIONS ----------------
@@ -100,7 +124,7 @@ def detect_phi_regex(text):
 
 
 def detect_phi_clean(text, threshold=0.9):
-    """Combined PHI detection with filtering + scores"""
+    """Combined PHI detection with regex + NER + embeddings filter"""
     regex_entities = detect_phi_regex(text)  # high confidence
     ner_entities = detect_phi(text)  # weaker, needs filtering
 
@@ -108,8 +132,12 @@ def detect_phi_clean(text, threshold=0.9):
     for e in ner_entities:
         if e["score"] < threshold:
             continue
-        if is_valid_entity(e["label"], e["text"]):
-            filtered.append(e)
+        if not is_valid_entity(e["label"], e["text"]):
+            continue
+        # For PERSON, check embeddings similarity
+        if e["label"] == "PERSON" and not embedding_is_name(e["text"]):
+            continue
+        filtered.append(e)
 
     grouped = {}
     # Add regex results first
