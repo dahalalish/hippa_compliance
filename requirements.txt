@@ -1,0 +1,7 @@
+pandas
+scikit-learn
+spacy
+pytesseract
+Pillow
+pdf2image
+reportlab

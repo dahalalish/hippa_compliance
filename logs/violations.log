@@ -1,0 +1,2 @@
+{"binary_phi": true, "ner_entities": [], "regex_violations": {"DATE": ["01/15/1989", "03/08/2024", "03/10/2024"], "PERSON": ["Dr. Alan Green", "Ms. Johnson"]}, "grouped_entities": {}, "document": "Medical Reports of Patients.pdf"}
+{"binary_phi": true, "ner_entities": [], "regex_violations": {"DATE": ["01/15/1989", "03/08/2024", "03/10/2024"], "PERSON": ["Dr. Alan Green", "Ms. Johnson"]}, "grouped_entities": {}, "document": "Medical Reports of Patients.pdf"}
