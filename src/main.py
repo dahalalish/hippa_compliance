@@ -1,54 +1,55 @@
 import os
+import json
 from pathlib import Path
+from phi_detection import detect_phi_clean
 from ocr_engine import extract_text_from_pdf
-from phi_detection import detect_phi, detect_phi_regex
-from alerting_system import log_violation
 
-SAMPLE_DOCS_DIR = Path(__file__).parent.parent / "data" / "sampledocs"
+BASE_DIR = Path(__file__).parent.parent
+SAMPLE_DOCS_DIR = BASE_DIR / "data" / "sampledocs"
+RESULTS_FILE = BASE_DIR / "phi_results.json"
+
 
 def clean_text(text):
     import re
-    text = re.sub(r'\n+', '\n', text)
-    text = re.sub(r'^[A-Z ]{3,50}\n', '', text, flags=re.MULTILINE)
+    text = re.sub(r"\n+", "\n", text)
+    text = re.sub(r"^[A-Z ]{3,50}\n", "", text, flags=re.MULTILINE)
     return text.strip()
 
+
 def analyze_document(doc_path):
-    print(f"\nAnalyzing: {doc_path.name}")
+    print(f"\nINFO: Analyzing: {doc_path.name}")
     text = extract_text_from_pdf(doc_path)
     text = clean_text(text)
 
-    ner_entities = detect_phi(text)
-    regex_violations = detect_phi_regex(text)
+    grouped_entities = detect_phi_clean(text)
 
-    # Group entities
-    VALID_LABELS = {"PERSON", "DATE", "ADDRESS", "PHONE", "EMAIL", "SSN"}
-    filtered_entities = [e for e in ner_entities if e["label"] in VALID_LABELS and len(e["text"].strip()) > 2]
-    unique_entities = {(e["text"], e["label"]) for e in filtered_entities}
-    grouped_entities = {}
-    for text_val, label in unique_entities:
-        grouped_entities.setdefault(label, []).append(text_val)
+    if grouped_entities:
+        print(f"WARNING: ⚠️ Violations found in {doc_path.name}")
+        for label, ents in grouped_entities.items():
+            print(f"  {label}:")
+            for e in ents:
+                print(f"    - {e['text']} (score={e['score']:.2f})")
+    else:
+        print(f"INFO: ✅ No PHI violations detected in {doc_path.name}")
 
-    report = {
-        "binary_phi": bool(grouped_entities or regex_violations),
-        "ner_entities": filtered_entities,
-        "regex_violations": regex_violations,
-        "grouped_entities": grouped_entities
-    }
+    return {doc_path.name: grouped_entities}
 
-    log_violation(doc_path.name, report)
-
-    print(f"⚠️ Violations found in {doc_path.name}:")
-    print(f"Grouped PHI Entities:\n{grouped_entities}")
-    print(f"Regex Violations:\n{regex_violations}")
 
 def main():
     if not SAMPLE_DOCS_DIR.exists():
-        print(f"Sample documents directory does not exist: {SAMPLE_DOCS_DIR}")
+        print(f"ERROR: Sample documents directory does not exist: {SAMPLE_DOCS_DIR}")
         return
 
+    results = []
     for file in SAMPLE_DOCS_DIR.iterdir():
         if file.suffix.lower() == ".pdf":
-            analyze_document(file)
+            results.append(analyze_document(file))
+
+    with open(RESULTS_FILE, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2, ensure_ascii=False)
+
+    print(f"\nINFO: 📄 Results saved to {RESULTS_FILE}")
+
 
 if __name__ == "__main__":
     main()

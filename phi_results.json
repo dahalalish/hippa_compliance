@@ -1,0 +1,33 @@
+[
+  {
+    "Medical Reports for Leave.pdf": {}
+  },
+  {
+    "Medical Reports of Patients.pdf": {
+      "DATE": [
+        {
+          "text": "01/15/1989",
+          "label": "DATE",
+          "score": 1.0
+        },
+        {
+          "text": "03/10/2024",
+          "label": "DATE",
+          "score": 1.0
+        },
+        {
+          "text": "03/08/2024",
+          "label": "DATE",
+          "score": 1.0
+        }
+      ],
+      "SSN": [
+        {
+          "text": "987654321",
+          "label": "SSN",
+          "score": 1.0
+        }
+      ]
+    }
+  }
+]
